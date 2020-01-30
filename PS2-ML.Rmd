@@ -1,0 +1,64 @@
+---
+title: "Problem Set 2"
+author: "Pete Cuppernull"
+date: "1/30/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Load Packages and Clean
+```{r}
+library(tidyverse)
+library(modelr)
+library(broom) 
+library(rsample) 
+library(patchwork)
+library(corrplot)
+library(ISLR)
+library(caret)
+library(rcfss)
+library(yardstick)
+biden <- read_csv("/Users/petecuppernull/Dropbox/UChicago/2019-20/Winter/Machine Learning/Repos/Problem-Set-2-ML/nes2008.csv")
+
+biden <- biden %>%
+  select(biden, female, age, educ, dem, rep) %>%
+  na.omit()
+
+```
+
+# 1. Estimate MSE
+```{r}
+biden_traditional <- glm(biden ~ .,
+                          data = biden)
+
+summary(biden_traditional)
+biden_mse <- modelr::mse(biden_traditional, biden)
+
+```
+
+The MSE of the traditional model is 395.2702.
+
+#2. Simple Holdout Validation
+```{r}
+##Split data
+set.seed(1414)
+split <- initial_split(biden, prop = .5) 
+biden_train <- training(split)
+biden_test <- testing(split)
+
+#Fit model w/ training data
+biden_train_ho <- lm(biden ~ .,
+                          data = biden_train)
+
+summary(biden_train_ho)
+biden_mse_train <- modelr::mse(biden_train_ho, biden_train)
+
+#Validate model
+biden_mse_test <- modelr::mse(biden_train_ho, biden_test)
+
+```
+The MSE of the training holdout model is 414.94. The MSE of the test holdout is 376.77.
+
