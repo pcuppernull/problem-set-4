@@ -21,6 +21,7 @@ library(ISLR)
 library(caret)
 library(rcfss)
 library(yardstick)
+library(stargazer)
 biden <- read_csv("/Users/petecuppernull/Dropbox/UChicago/2019-20/Winter/Machine Learning/Repos/Problem-Set-2-ML/nes2008.csv")
 
 biden <- biden %>%
@@ -33,13 +34,11 @@ biden <- biden %>%
 ```{r}
 biden_traditional <- glm(biden ~ .,
                           data = biden)
-
-summary(biden_traditional)
 biden_mse <- modelr::mse(biden_traditional, biden)
 
 ```
 
-The MSE of the traditional model is 395.2702.
+The MSE of the traditional model is `r biden_mse`.
 
 #2. Simple Holdout Validation
 ```{r}
@@ -54,11 +53,67 @@ biden_train_ho <- lm(biden ~ .,
                           data = biden_train)
 
 summary(biden_train_ho)
-biden_mse_train <- modelr::mse(biden_train_ho, biden_train)
 
 #Validate model
 biden_mse_test <- modelr::mse(biden_train_ho, biden_test)
 
 ```
-The MSE of the training holdout model is 414.94. The MSE of the test holdout is 376.77.
+The MSE of the training holdout model is `r biden_mse_test`. Considering that the MSE of the traditional model is `r biden_mse`, the simple holdout appraoch provides a more accurate learner. SOME EXPLANATION HERE
 
+#3. Bootstrap
+```{r}
+mean_biden <- function(splits) {
+  x <- analysis(splits)
+  mean(x$biden)
+}
+
+##function for mse
+biden_mse_boot <- function(split_data){
+  
+biden_train_ho <- lm(biden ~ .,
+                          data = split_data)
+biden_mse_train <- modelr::mse(biden_train_ho, split_data)
+biden_mse_train
+}
+
+
+biden_bootstrap <- biden %>%
+  bootstraps(1000) %>%
+  mutate(mean = map_dbl(splits, mean_biden)) %>%
+  mutate(mse_boot = map_dbl(splits, biden_mse_boot))
+  
+head(biden_bootstrap)
+
+#Means
+ggplot(biden_bootstrap) +
+  geom_histogram(aes(mean)) +
+  geom_vline(xintercept = mean(biden_bootstrap$mean)) +
+  labs(x = "Mean",
+       y = "Frequency",
+       title = "Distribution of Means",
+       subtitle = "1000 Bootstraps")
+
+#MSE
+ggplot(biden_bootstrap) +
+  geom_histogram(aes(mse_boot)) +
+  geom_vline(xintercept = mean(biden_bootstrap$mse_boot)) +
+  labs(x = "MSE",
+       y = "Frequency",
+       title = "Distribution of MSE",
+       subtitle = "1000 Bootstraps")
+```
+WRITE UP COMMENTS HERE
+
+## Question 4. Comparison
+
+Traditional
+```{r}
+stargazer(biden_traditional, type = "text")
+stargazer(biden_bootstrap, type = "text")
+
+biden_traditional <- glm(biden ~ .,
+                          data = biden_bootstrap)
+biden_mse <- modelr::mse(biden_traditional, biden)
+```
+
+Traditional
