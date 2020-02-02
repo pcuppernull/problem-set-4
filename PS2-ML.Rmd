@@ -9,8 +9,8 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-#Load Packages and Clean
-```{r}
+###Load Packages and Clean
+```{r, warning=FALSE, message=FALSE}
 library(tidyverse)
 library(modelr)
 library(broom) 
@@ -36,9 +36,11 @@ biden_traditional <- glm(biden ~ .,
                           data = biden)
 biden_mse <- modelr::mse(biden_traditional, biden)
 
+stargazer(biden_traditional, type = "text")
+
 ```
 
-The MSE of the traditional model is `r biden_mse`.
+The MSE of the traditional model is `r biden_mse`. The simple linear model shows that partisanship explains much of an individual's feelings towards Biden, as evidenced by the relatively large and statistically significant coefficients on the democrat and republican variables. An individual's gender also can help explain feelings towards Biden.  Somewhat surprisingly, education level and age seem to have the least bearing on one’s feelings towards Biden — this might indicate that despite age, an individual’s party identification explains much of their political preferences.
 
 #2. Simple Holdout Validation
 ```{r}
@@ -54,14 +56,14 @@ biden_train_ho <- lm(biden ~ .,
 
 summary(biden_train_ho)
 
-#Validate model
+#Calculate MSE
 biden_mse_test <- modelr::mse(biden_train_ho, biden_test)
 
 ```
-The MSE of the training holdout model is `r biden_mse_test`. Considering that the MSE of the traditional model is `r biden_mse`, the simple holdout appraoch provides a more accurate learner. SOME EXPLANATION HERE
+The MSE of the test set of the holdout model is `r biden_mse_test`. Considering that the MSE of the traditional model is `r biden_mse`, the simple holdout appraoch provides a more accurate learner. This suggests that we may have been overfitting the data in the traditional model, and actually building a model on fewer observations in the holdout approach results in a more accurate learner.
 
 #3. Bootstrap
-```{r}
+```{r, message=FALSE}
 mean_biden <- function(splits) {
   x <- analysis(splits)
   mean(x$biden)
@@ -81,8 +83,6 @@ biden_bootstrap <- biden %>%
   bootstraps(1000) %>%
   mutate(mean = map_dbl(splits, mean_biden)) %>%
   mutate(mse_boot = map_dbl(splits, biden_mse_boot))
-  
-head(biden_bootstrap)
 
 #Means
 ggplot(biden_bootstrap) +
@@ -102,18 +102,31 @@ ggplot(biden_bootstrap) +
        title = "Distribution of MSE",
        subtitle = "1000 Bootstraps")
 ```
-WRITE UP COMMENTS HERE
+The mean of the sample means is `r mean(biden_bootstrap$mean)` and the mean of the MSEs is `r mean(biden_bootstrap$mse_boot)`. We can observe that the individual values of both appear to be drawn from a normal distribution, which we would expect. The mean of the bootstrapped means and MSEs also approximately converge on the true mean (`r mean(biden$biden)`) and MSE (`r biden_mse`) of the original sample.
 
 ## Question 4. Comparison
 
-Traditional
 ```{r}
 stargazer(biden_traditional, type = "text")
-stargazer(biden_bootstrap, type = "text")
 
-biden_traditional <- glm(biden ~ .,
-                          data = biden_bootstrap)
-biden_mse <- modelr::mse(biden_traditional, biden)
+model_coef <- function(splits, ...) {
+  mod <- lm(..., data = analysis(splits))
+  tidy(mod)
+}
+
+biden_bootstrap4 <- biden %>%
+  as_tibble()%>%
+  bootstraps(1000)%>%
+  mutate(coef = map(splits, model_coef, as.formula(biden ~ .))) 
+
+bootstrap_coefs <- biden_bootstrap4 %>%
+  unnest(coef) %>%
+  group_by(term) %>% 
+  summarize(.estimate = mean(estimate),
+            .se = sd(estimate, na.rm = TRUE))
+
+summary(biden_traditional)$coefficients
+
 ```
 
-Traditional
+Considering the outputs of our first model and our bootstrapped model, we can see that partisanship remains the strongest indicator of feelings towards Biden in both models. We also observe similar coeffiecients for the gender, age, and education variables. However, the standard errors in the bootstrapped model are slightly larger than in the original model, as we would expect — the bootstrapped model does not assume a strict functional form, and if we had reserved confidence in this assumption when analyzing this data, the bootstrapped model would be a more appropriate modeling choice.
